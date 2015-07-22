@@ -134,6 +134,20 @@ class Graph {
     }
   }
 
+  /* accumulate edge values */
+  template<typename T1,
+           typename T2,
+           typename TACC>
+  void edge_apply(std::vector<T1> &vec1, 
+                  std::vector<T2> &vec2,
+                  TACC &acc,
+                  std::function<void(T1&, T2&, ET&, TACC&)> acc_op){
+    for(auto &e : edges ) {
+      acc_op(vec1[e.src], vec2[e.dst], e.val, acc);
+    }
+  }
+                  
+
 
   /* do edge apply , apply to U and apply to V*/
   template<typename T>

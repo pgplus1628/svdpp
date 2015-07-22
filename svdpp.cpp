@@ -28,6 +28,7 @@ class SVDPP {
   static double MAXVAL ;
   static double GLOBAL_MEAN ;
 
+  static double rmse;
 
 
   static const size_t NLATENT = 20;
@@ -194,6 +195,20 @@ class SVDPP {
     }
   }
 
+
+  static void acc_error(Ftype &f_user, Ftype &f_item, Etype &e, double &rmse) {
+    double pred = GLOBAL_MEAN + f_user.bias + f_item.bias;
+    for(size_t i = 0;i < NLATENT;i ++) {
+      pred += f_user.pvec[i] * f_item.pvec[i];
+    }
+    
+    pred = std::min(MAXVAL, pred);
+    pred = std::max(MINVAL, pred); 
+    double err = (e.obs - pred) * (e.obs - pred);
+    rmse += err;
+  }
+  
+
 };
 
 
@@ -211,6 +226,7 @@ double SVDPP::MINVAL = -1e+100;
 double SVDPP::MAXVAL = 1e+100;
 double SVDPP::GLOBAL_MEAN = 0.0;
 
+double SVDPP::rmse;
 
 
 
@@ -248,7 +264,6 @@ int main(int argc, char ** argv) {
 
   /* train */
   for(size_t it = 0; it < FLAGS_max_iter; it ++) {
-    LOG(INFO) << " SVDPP::iteration " << it << " begin.";
     /* reset r_user r_item s_item */
     unary_app<SVDPP::Rtype>(*r_user, SVDPP::reset_r);
     unary_app<SVDPP::Rtype>(*r_item, SVDPP::reset_r);
@@ -278,14 +293,13 @@ int main(int argc, char ** argv) {
                                                *f_item, *w_item,
                                                SVDPP::update_item);
 
+    SVDPP::rmse = 0.0;
+    /* accumulate rmse */
+    graph->edge_apply<SVDPP::Ftype, SVDPP::Ftype, double>
+                     (*f_user, *f_item, SVDPP::rmse, SVDPP::acc_error);
 
-    LOG(INFO) << " SVDPP::iteration " << it << " end.";
+    LOG(INFO) << " SVDPP::iteration " << it <<  " rmse : " << SVDPP::rmse << " end.";
   }
-
-
-
-
-
 
   return 0;
 }
