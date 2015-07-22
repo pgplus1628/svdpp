@@ -1,10 +1,10 @@
 CXX?=g++
 CXXFLAGS?=-O3 -g -std=c++11
 INCLUDES?=-I.
-LDFLAGS?=-lgflags -lglog
+LDFLAGS?= -lglog -lgflags
 
 svdpp : svdpp.o
-	$(CXX) $(CXXFLAGS) -o $@ $< $(LDFALGS)
+	$(CXX) $(CXXFLAGS) -o $@ $< $(LDFLAGS)
 
 svdpp.o : svdpp.cpp
 	$(CXX) $(CXXFLAGS) $(INCLUDES) -c $< -o $@

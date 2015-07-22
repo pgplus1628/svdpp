@@ -25,9 +25,9 @@ template<typename VT1,
          typename VT4>
 void quaternary_app(std::vector<VT1> &vec1, 
                 std::vector<VT2> &vec2, 
-                std::vector<VT2> &vec3, 
-                std::vector<VT2> &vec4, 
-                std::function<void(VT1&, VT2&)> op)
+                std::vector<VT3> &vec3, 
+                std::vector<VT4> &vec4, 
+                std::function<void(VT1&, VT2&, VT3&, VT4&)> op)
 {
   for(size_t i = 0;i < vec1.size(); i++) {
     op(vec1[i], vec2[i], vec3[i], vec4[i]);

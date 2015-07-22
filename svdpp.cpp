@@ -9,32 +9,42 @@
 
 DEFINE_string(graph, "", "path to user item rating file. line format : <item> <user> <rating>, separated by tab.");
 DEFINE_int32(max_iter, 1000000, "max iteration.");
+DEFINE_int32(strip_width, 1024, "strip_width");
 
 
 class SVDPP {
-  static float itmBiasStep  = 1e-4;
-  static float itmBiasReg   = 1e-4;
-  static float usrBiasStep  = 1e-4;
-  static float usrBiasReg   = 1e-4;
-  static float usrFctrStep  = 1e-4;
-  static float usrFctrReg   = 1e-4;
-  static float itmFctrStep  = 1e-4;
-  static float itmFctrReg   = 1e-4;
-  static float itmFctr2Step = 1e-4;
-  static float itmFctr2Reg  = 1e-4;
+  public :
+  static float itmBiasStep ;
+  static float itmBiasReg  ;
+  static float usrBiasStep ;
+  static float usrBiasReg  ;
+  static float usrFctrStep ;
+  static float usrFctrReg  ;
+  static float itmFctrStep ;
+  static float itmFctrReg  ;
+  static float itmFctr2Step;
+  static float itmFctr2Reg ;
+  static double MINVAL ;
+  static double MAXVAL ;
+  static double GLOBAL_MEAN ;
 
 
-  static size_t NLATENT;
-  static double MINVAL = -1e+100;
-  static double MAXVAL = 1e+100;
 
-  static double GLOBAL_MEAN = 0.0;
+  static const size_t NLATENT = 20;
 
   /*
    * Edge type
    */
   struct Etype { 
     double obs;
+    friend std::istream & operator >>(std::istream& is, struct Etype &eval){
+      is >> eval.obs;
+      return is;
+    }
+    friend std::ostream & operator <<(std::ostream& os, struct Etype &eval){
+      os << eval.obs;
+      return os;
+    }
   };
   
   typedef struct Etype Etype;
@@ -110,7 +120,7 @@ class SVDPP {
 
   /* global mean edge_apply */
   static void gb_eapp(Etype &e, double &acc) {
-    acc += e;
+    acc += e.obs;
   }
 
 
@@ -127,11 +137,12 @@ class SVDPP {
   }
 
 
-  static void triplet_apply(Ftype &f_user, Ftype &f_item, 
-                            Wtype &w_user, Wtype &w_item,
-                            Ltype &l_user,
-                            Etype &e,
-                            Rtype &r_user, Rtype &r_item, Stype &s_item)
+  static void gen_update(Ftype &f_user, Ftype &f_item, 
+                         Wtype &w_user, Wtype &w_item,
+                         Ltype &l_user,
+                         Etype &e,
+                         Rtype &r_user, Rtype &r_item, 
+                         Stype &s_item)
   {
     double pred = GLOBAL_MEAN + f_user.bias + f_item.bias;
     for(size_t i = 0;i < NLATENT; i ++) {
@@ -154,14 +165,14 @@ class SVDPP {
 
     for(size_t i = 0;i < NLATENT;i ++) {
       r_item.delta_pvec[i] = itmFctrStep * (err * 
-                  (f_user.pvec[i] + f_user.weight[i] - itmFctrReg * f_item.pvec[i]) );
+                  (f_user.pvec[i] + w_user.weight[i] - itmFctrReg * f_item.pvec[i]) );
     }
 
     /* gen step */
     double _a = err * itmFctr2Step * l_user;
     double _b = itmFctr2Step * itmFctr2Reg;
     for(size_t i = 0; i < NLATENT;i ++) {
-      s_item.step[i] = f_item.pvec[i] * _a - _b * f_item.weight[i];
+      s_item.step[i] = f_item.pvec[i] * _a - _b * w_item.weight[i];
     }
   }
 
@@ -175,9 +186,9 @@ class SVDPP {
 
   static void update_item(Rtype &r_item, Stype &s_item, Ftype &f_item, Wtype &w_item) {
     for(size_t i = 0;i < NLATENT;i ++) {
-      f_item.pvec[i] += r_item.pvec[i];
+      f_item.pvec[i] += r_item.delta_pvec[i];
     }
-    f_item.bias += r_item.bias;
+    f_item.bias += r_item.delta_bias;
     for(size_t i = 0;i < NLATENT;i ++) {
       w_item.weight[i] += s_item.step[i];
     }
@@ -185,6 +196,20 @@ class SVDPP {
 
 };
 
+
+float SVDPP::itmBiasStep  = 1e-4;
+float SVDPP::itmBiasReg   = 1e-4;
+float SVDPP::usrBiasStep  = 1e-4;
+float SVDPP::usrBiasReg   = 1e-4;
+float SVDPP::usrFctrStep  = 1e-4;
+float SVDPP::usrFctrReg   = 1e-4;
+float SVDPP::itmFctrStep  = 1e-4;
+float SVDPP::itmFctrReg   = 1e-4;
+float SVDPP::itmFctr2Step = 1e-4;
+float SVDPP::itmFctr2Reg  = 1e-4;
+double SVDPP::MINVAL = -1e+100;
+double SVDPP::MAXVAL = 1e+100;
+double SVDPP::GLOBAL_MEAN = 0.0;
 
 
 
@@ -194,60 +219,67 @@ int main(int argc, char ** argv) {
   google::ParseCommandLineFlags(&argc, &argv, false);
   google::InitGoogleLogging(argv[0]);
 
-  Graph<Etype> * graph = new Graph<Etype>();
-  size_t u_len = graph->get_dim().first();
-  size_t v_len = graph->get_dim().second();
+  Graph<SVDPP::Etype> * graph = new Graph<SVDPP::Etype>(FLAGS_strip_width);
+  size_t u_len = graph->get_dim().first;
+  size_t v_len = graph->get_dim().second;
 
-  std::vector<Ftype> *f_user = new std::vector<Ftype>(u_len);
-  std::vector<Ftype> *f_item = new std::vector<Ftype>(v_len);
+  std::vector<SVDPP::Ftype> *f_user = new std::vector<SVDPP::Ftype>(u_len);
+  std::vector<SVDPP::Ftype> *f_item = new std::vector<SVDPP::Ftype>(v_len);
 
-  std::vector<Wtype> *w_user = new std::vector<Wtype>(u_len);
-  std::vector<Wtype> *w_item = new std::vector<Wtype>(v_len);
+  std::vector<SVDPP::Wtype> *w_user = new std::vector<SVDPP::Wtype>(u_len);
+  std::vector<SVDPP::Wtype> *w_item = new std::vector<SVDPP::Wtype>(v_len);
 
-  std::vector<Ltype> *l_user = new std::vector<Ltype>(u_len);
-  std::vector<Stype> *s_item = new std::vector<Stype>(v_len);
+  std::vector<SVDPP::Rtype> *r_user = new std::vector<SVDPP::Rtype>(u_len);
+  std::vector<SVDPP::Rtype> *r_item = new std::vector<SVDPP::Rtype>(v_len);
+
+  std::vector<SVDPP::Ltype> *l_user = new std::vector<SVDPP::Ltype>(u_len);
+  std::vector<SVDPP::Stype> *s_item = new std::vector<SVDPP::Stype>(v_len);
 
   /* load graph */
   graph->load(FLAGS_graph);
 
   /* init */
-  unary_app<Ltype>(*l_user, SVDPP::reset_l);
-  graph->reduce<Ltype>(SVDPP::map_l, *luser);
-  unary_app<Ltype>(*l_user, SVDPP::update_l);
+  unary_app<SVDPP::Ltype>(*l_user, SVDPP::reset_l);
+  graph->reduce<SVDPP::Ltype>(*l_user, SVDPP::map_l);
+  unary_app<SVDPP::Ltype>(*l_user, SVDPP::update_l);
 
   // GLOBAL_MEAN
   graph->edge_apply<double>(SVDPP::GLOBAL_MEAN, SVDPP::gb_eapp);
 
   /* train */
   for(size_t it = 0; it < FLAGS_max_iter; it ++) {
-    LOG(INFO) << " SVDPP::iteration " << it << " begin."
+    LOG(INFO) << " SVDPP::iteration " << it << " begin.";
     /* reset r_user r_item s_item */
-    unary_app<Rtype>(*r_user, reset_r);
-    unary_app<Rtype>(*r_item, reset_r);
-    unary_app<Stype>(*s_item, reset_s);
+    unary_app<SVDPP::Rtype>(*r_user, SVDPP::reset_r);
+    unary_app<SVDPP::Rtype>(*r_item, SVDPP::reset_r);
+    unary_app<SVDPP::Stype>(*s_item, SVDPP::reset_s);
 
 
     /* user gather weights */
-    graph->edge_apply<Wtype>(*w_user, *w_item, SVDPP::gather_weight);
+    graph->edge_apply<SVDPP::Wtype>(*w_user, *w_item, SVDPP::gather_weight);
 
     /* edge apply */
-    graph->edge_apply<Ftype, Wtype, Ltype, Rtype, Stype>(*f_user,
-                                                         *f_item, 
-                                                         *w_user,
-                                                         *w_item,
-                                                         *l_user,
-                                                         *r_user,
-                                                         *r_item,
-                                                         *s_item);
+    graph->edge_apply<SVDPP::Ftype, SVDPP::Wtype, 
+                      SVDPP::Ltype, SVDPP::Rtype, 
+                      SVDPP::Stype>(*f_user,
+                                    *f_item, 
+                                    *w_user,
+                                    *w_item,
+                                    *l_user,
+                                    *r_user,
+                                    *r_item,
+                                    *s_item,
+                                    SVDPP::gen_update);
 
     /* update f_user and f_item */
-    binary_app<Rtype, Ftype>(*r_user, *f_user, SVDPP::update_user);
-    quaternary_app<Rtype, Stype, Ftpye, Wtype>(*r_item, *s_item, 
+    binary_app<SVDPP::Rtype, SVDPP::Ftype>(*r_user, *f_user, SVDPP::update_user);
+    quaternary_app<SVDPP::Rtype, SVDPP::Stype, 
+                   SVDPP::Ftype, SVDPP::Wtype>(*r_item, *s_item, 
                                                *f_item, *w_item,
-                                               SVDPP::update_user);
+                                               SVDPP::update_item);
 
 
-    LOG(INFO) << " SVDPP::iteration " << it << " end."
+    LOG(INFO) << " SVDPP::iteration " << it << " end.";
   }
 
 

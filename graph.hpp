@@ -2,10 +2,12 @@
 #include <glog/logging.h>
 #include <gflags/gflags.h>
 #include <vector>
-#include <ifstream>
+#include <fstream>
 #include <algorithm>
 #include <functional>
-#include <utinity>
+#include <utility>
+#include <unordered_map>
+#include <sstream>
 
 typedef uint32_t VidType;
 
@@ -39,44 +41,41 @@ class Graph {
 
   void load(std::string fname)
   {
-    std::set<VidType> Uidset;
-    std::set<VidType> Vidset;
-    Uidset.clear(); Vidset.clear();
     /* load graph */
-    {
-      std::ifstream ifs(fname.c_str(), std::ios_base::in | std::ios_base::binary);
-      std::string line;
-      std::unordered_map<VidType, VidType>::iterator it;
-      while( std::getline(ifs, line) ) {
-        if (line[0] == '#') {
-          LOG(INFO) << line;
-          continue;
-        }
-        VidType src, dst;
-        ET val;
-        line >> src >> dst >> val;
-        it = Uid2id.find(src);
-        if (it == Uid2id.end() ) {
-          Uid2id[src] = Uid2id.size();
-          src = Uid2id.size() - 1;
-        } else { 
-          src = *it;
-        }
-
-        it = Vid2id.find(dst);
-        if (it == Vid2id.end() ) {
-          Vid2id[dst] = Vid2id.size();
-          dst = Vid2id.size() - 1;
-        } else { 
-          dst = *it;
-        }
-        
-        edges.emplace_back(src, dst, val);
-
+    std::ifstream ifs(fname.c_str(), std::ios_base::in | std::ios_base::binary);
+    std::string line;
+    std::unordered_map<VidType, VidType>::iterator it;
+    while( std::getline(ifs, line) ) {
+      if (line[0] == '#') {
+        LOG(INFO) << line;
+        continue;
       }
-      LOG(INFO) << " Load graph fininshed. Number of edges : " << edges.size() << ".";
-      ifs.close();
+      VidType src, dst;
+      ET val;
+      std::stringstream ss(line);
+      ss >> src >> dst >> val;
+      it = Uid2id.find(src);
+      if (it == Uid2id.end() ) {
+        Uid2id[src] = Uid2id.size();
+        src = Uid2id.size() - 1;
+      } else { 
+        src = it->second;
+      }
+
+      it = Vid2id.find(dst);
+      if (it == Vid2id.end() ) {
+        Vid2id[dst] = Vid2id.size();
+        dst = Vid2id.size() - 1;
+      } else { 
+        dst = it->second;
+      }
+      
+      edges.emplace_back(src, dst, val);
+
     }
+    LOG(INFO) << " Load graph fininshed. Number of edges : " << edges.size() << ".";
+    ifs.close();
+    
 
     /* finalize graph */
     LOG(INFO) << " Finalize graph begin.";
@@ -156,7 +155,7 @@ class Graph {
                   std::vector<W> &vecWU_out, std::vector<W> &vecWV_out,
                   std::vector<L> &vecLU_out,
                   std::vector<R> &vecRU_out, std::vector<R> &vecRV_out,
-                  std::vector<L> &vecSV_out,
+                  std::vector<S> &vecSV_out,
                   std::function<void(F&, F&, W&, W&, L&, ET&, R&, R&, S&)> app_op) 
   {
     for(auto &e : edges ) {
@@ -169,16 +168,9 @@ class Graph {
              vecRU_out[s], vecRV_out[d],
              vecSV_out[d]);
     }
-
-
-
   }
-                  
-                  
 
-
-
-  /* <U, V> */
+   /* <U, V> */
   std::pair<size_t, size_t> get_dim()
   {
     return std::make_pair(Uid2id.size(), Vid2id.size());
