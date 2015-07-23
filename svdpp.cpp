@@ -3,6 +3,8 @@
 #include <glog/logging.h>
 #include <gflags/gflags.h>
 #include <cmath>
+#include <random>
+#include <algorithm>
 
 #include "graph.hpp"
 #include "vec.hpp"
@@ -10,6 +12,19 @@
 DEFINE_string(graph, "", "path to user item rating file. line format : <item> <user> <rating>, separated by tab.");
 DEFINE_int32(max_iter, 1000000, "max iteration.");
 DEFINE_int32(strip_width, 1024, "strip_width");
+
+class RandGen {
+  public :
+  std::mt19937 gen;
+  RandGen() {
+    gen.seed(time(0));
+  }
+  double get_rand() {
+    return std::uniform_real_distribution<> (-10.0, 10.0)(gen);
+  }
+};
+
+static RandGen RG;
 
 
 class SVDPP {
@@ -32,7 +47,7 @@ class SVDPP {
   static double rmse;
 
 
-  static const size_t NLATENT = 1024;
+  static const size_t NLATENT = 128;
 
   /*
    * Edge type
@@ -57,6 +72,13 @@ class SVDPP {
   struct Ftype { 
     double pvec[NLATENT];
     double bias;
+    std::string to_string() {
+      std::string ret;
+      ret += "biase : "  + std::to_string(bias);
+      ret += "\npvec : " ;
+      std::for_each(pvec, pvec+NLATENT, [&](double &x) { ret += " " + std::to_string(x) ; });
+      return ret;
+    }
   };
   typedef struct Ftype Ftype;
 
@@ -73,6 +95,13 @@ class SVDPP {
   struct Rtype {
     double delta_pvec[NLATENT];
     double delta_bias;
+    std::string to_string() {
+      std::string ret;
+      ret += "biase : "  + std::to_string(delta_bias);
+      ret += "\npvec : " ;
+      std::for_each(delta_pvec, delta_pvec+NLATENT, [&](double &x) { ret += " " + std::to_string(x) ; });
+      return ret;
+    }
   };
   typedef struct Rtype Rtype;
 
@@ -103,9 +132,17 @@ class SVDPP {
   static void reset_f(Ftype &f) {
     for(size_t i = 0;i < NLATENT;i ++) {
       f.pvec[i] = 0.0;
-      f.bias = 0.0;
     }
+    f.bias = 0.0;
   }
+
+  static void rand_f(Ftype &f) {
+    for(size_t i = 0;i < NLATENT;i ++) {
+      f.pvec[i] = RG.get_rand();
+    }
+    f.bias = RG.get_rand();
+  }
+  
 
   static void reset_r(Rtype &r) {
     for(size_t i = 0;i < NLATENT;i ++) {
@@ -126,7 +163,7 @@ class SVDPP {
   }
 
 
-  static void reset_weight(Wtype &w) {
+  static void reset_w(Wtype &w) {
     for(size_t i = 0;i < NLATENT;i ++ ) {
       w.weight[i] = 0.0;
     }
@@ -167,11 +204,11 @@ class SVDPP {
 
     for(size_t i = 0;i < NLATENT;i ++) {
       r_item.delta_pvec[i] = itmFctrStep * (err * 
-                  (f_user.pvec[i] + w_user.weight[i] - itmFctrReg * f_item.pvec[i]) );
+                  (f_user.pvec[i] + w_user.weight[i]) - itmFctrReg * f_item.pvec[i]) ;
     }
 
     /* gen step */
-    double _a = err * itmFctr2Step * l_user;
+    double _a = err  * itmFctr2Step * l_user ;
     double _b = itmFctr2Step * itmFctr2Reg;
     for(size_t i = 0; i < NLATENT;i ++) {
       s_item.step[i] = f_item.pvec[i] * _a - _b * w_item.weight[i];
@@ -221,20 +258,20 @@ class SVDPP {
 };
 
 
-float SVDPP::itmBiasStep  = 1e-2;
-float SVDPP::itmBiasReg   = 1e-2;
-float SVDPP::usrBiasStep  = 1e-2;
-float SVDPP::usrBiasReg   = 1e-2;
-float SVDPP::usrFctrStep  = 1e-2;
-float SVDPP::usrFctrReg   = 1e-2;
-float SVDPP::itmFctrStep  = 1e-2;
-float SVDPP::itmFctrReg   = 1e-2;
-float SVDPP::itmFctr2Step = 1e-2;
-float SVDPP::itmFctr2Reg  = 1e-2;
+float SVDPP::itmBiasStep  = 1e-7;
+float SVDPP::itmBiasReg   = 1e-7;
+float SVDPP::usrBiasStep  = 1e-7;
+float SVDPP::usrBiasReg   = 1e-7;
+float SVDPP::usrFctrStep  = 1e-7;
+float SVDPP::usrFctrReg   = 1e-7;
+float SVDPP::itmFctrStep  = 1e-7;
+float SVDPP::itmFctrReg   = 1e-7;
+float SVDPP::itmFctr2Step = 1e-7;
+float SVDPP::itmFctr2Reg  = 1e-7;
 double SVDPP::MINVAL = -1e+100;
 double SVDPP::MAXVAL = 1e+100;
 double SVDPP::GLOBAL_MEAN = 0.0;
-double SVDPP::STEP_DEC = 1.0;
+double SVDPP::STEP_DEC = 0.9;
 
 double SVDPP::rmse = 0.0;
 
@@ -243,7 +280,7 @@ double SVDPP::rmse = 0.0;
 int main(int argc, char ** argv) {
 
   google::ParseCommandLineFlags(&argc, &argv, false);
-  //google::InitGoogleLogging(argv[0]);
+  google::InitGoogleLogging(argv[0]);
 
   Graph<SVDPP::Etype> * graph = new Graph<SVDPP::Etype>(FLAGS_strip_width);
   /* load graph */
@@ -280,12 +317,20 @@ int main(int argc, char ** argv) {
   // GLOBAL_MEAN
   graph->edge_apply<double>(SVDPP::GLOBAL_MEAN, SVDPP::gb_eapp);
 
+
   /* train */
+  //unary_app<SVDPP::Ftype>(*f_user, SVDPP::reset_f);
+  //unary_app<SVDPP::Ftype>(*f_item, SVDPP::reset_f);
+  unary_app<SVDPP::Ftype>(*f_user, SVDPP::rand_f);
+  unary_app<SVDPP::Ftype>(*f_item, SVDPP::rand_f);
+
+
   for(size_t it = 0; it < FLAGS_max_iter; it ++) {
     /* reset r_user r_item s_item */
     unary_app<SVDPP::Rtype>(*r_user, SVDPP::reset_r);
     unary_app<SVDPP::Rtype>(*r_item, SVDPP::reset_r);
     unary_app<SVDPP::Stype>(*s_item, SVDPP::reset_s);
+    unary_app<SVDPP::Wtype>(*w_user, SVDPP::reset_w);
 
 
     /* user gather weights */
@@ -303,6 +348,11 @@ int main(int argc, char ** argv) {
                                     *r_item,
                                     *s_item,
                                     SVDPP::gen_update);
+
+
+    if (it % 100 == 0) {
+      dump_vec<SVDPP::Rtype>(*r_user, "r_user_" + std::to_string(it) + ".dat");
+    }
 
     /* update f_user and f_item */
     binary_app<SVDPP::Rtype, SVDPP::Ftype>(*r_user, *f_user, SVDPP::update_user);
@@ -322,6 +372,13 @@ int main(int argc, char ** argv) {
     /* update k */
     if (it % 30 == 0)
       SVDPP::update_k();
+
+/*
+    if (it % 100 == 0) {
+      LOG(INFO) << " ----------- " ;
+      dump_vec<SVDPP::Ftype>(*f_user, "f_user_" + std::to_string(it) + ".dat");
+    }
+*/
 
     LOG(INFO) << " SVDPP::iteration " << it <<  " rmse : " << SVDPP::rmse << " end.";
   }

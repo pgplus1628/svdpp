@@ -2,6 +2,7 @@
 #include <vector>
 #include <functional>
 #include <algorithm>
+#include <fstream>
 
 
 template<typename VT>
@@ -34,4 +35,16 @@ void quaternary_app(std::vector<VT1> &vec1,
   }
 }
 
+
+
+template<typename T>
+void dump_vec(std::vector<T> &vec, std::string fname)
+{
+  std::ofstream ofs(fname.c_str(), std::ios_base::out | std::ios_base::binary);
+  for(auto &v : vec ) {
+    ofs << v.to_string() << "\n";
+  }
+
+  ofs.close();
+}
 
