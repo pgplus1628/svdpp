@@ -27,11 +27,12 @@ class SVDPP {
   static double MINVAL ;
   static double MAXVAL ;
   static double GLOBAL_MEAN ;
+  static double STEP_DEC;
 
   static double rmse;
 
 
-  static const size_t NLATENT = 128;
+  static const size_t NLATENT = 1024;
 
   /*
    * Edge type
@@ -207,6 +208,14 @@ class SVDPP {
     double err = (e.obs - pred) * (e.obs - pred);
     rmse += err;
   }
+
+  static void update_k() {
+    usrBiasStep *= STEP_DEC;
+    itmBiasStep *= STEP_DEC;
+    usrFctrStep *= STEP_DEC;
+    itmFctrStep *= STEP_DEC;
+    itmFctr2Step *= STEP_DEC;
+  }
   
 
 };
@@ -225,8 +234,9 @@ float SVDPP::itmFctr2Reg  = 1e-2;
 double SVDPP::MINVAL = -1e+100;
 double SVDPP::MAXVAL = 1e+100;
 double SVDPP::GLOBAL_MEAN = 0.0;
+double SVDPP::STEP_DEC = 1.0;
 
-double SVDPP::rmse;
+double SVDPP::rmse = 0.0;
 
 
 
@@ -243,6 +253,7 @@ int main(int argc, char ** argv) {
 
   size_t u_len = graph->get_dim().first;
   size_t v_len = graph->get_dim().second;
+  size_t num_edges = graph->get_num_edges();
 
   //graph->dump_id2id(FLAGS_graph);
 
@@ -304,6 +315,13 @@ int main(int argc, char ** argv) {
     /* accumulate rmse */
     graph->edge_apply<SVDPP::Ftype, SVDPP::Ftype, double>
                      (*f_user, *f_item, SVDPP::rmse, SVDPP::acc_error);
+    double r = SVDPP::rmse;
+    r = std::sqrt( r / double(num_edges) );
+    SVDPP::rmse = r;
+
+    /* update k */
+    if (it % 30 == 0)
+      SVDPP::update_k();
 
     LOG(INFO) << " SVDPP::iteration " << it <<  " rmse : " << SVDPP::rmse << " end.";
   }

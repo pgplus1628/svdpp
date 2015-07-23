@@ -198,6 +198,11 @@ class Graph {
   }
 
 
+  size_t get_num_edges()
+  {
+    return edges.size();
+  }
+
   /* debug */
   void dump_id2id(std::string fname) 
   {
