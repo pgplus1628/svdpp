@@ -42,30 +42,36 @@ class Graph {
   void load(std::string fname)
   {
     /* load graph */
+    LOG(INFO) << " Loading graph " << fname;
     std::ifstream ifs(fname.c_str(), std::ios_base::in | std::ios_base::binary);
+    if (!ifs.good()) {
+      LOG(FATAL) << "Error opning file " << fname << ".";
+    }
     std::string line;
     std::unordered_map<VidType, VidType>::iterator it;
-    while( std::getline(ifs, line) ) {
+    while(std::getline(ifs, line) ) {
       if (line[0] == '#') {
         LOG(INFO) << line;
         continue;
       }
-      VidType src, dst;
+      VidType src, dst, tmp;
       ET val;
       std::stringstream ss(line);
       ss >> src >> dst >> val;
       it = Uid2id.find(src);
       if (it == Uid2id.end() ) {
-        Uid2id[src] = Uid2id.size();
-        src = Uid2id.size() - 1;
+        tmp = Uid2id.size();
+        Uid2id[src] = tmp;
+        src = tmp;
       } else { 
         src = it->second;
       }
 
       it = Vid2id.find(dst);
       if (it == Vid2id.end() ) {
-        Vid2id[dst] = Vid2id.size();
-        dst = Vid2id.size() - 1;
+        tmp = Vid2id.size();
+        Vid2id[dst] = tmp;
+        dst = tmp;
       } else { 
         dst = it->second;
       }
@@ -119,8 +125,9 @@ class Graph {
   }
 
 
+  /* U side edge reduce */
   template<typename Ltype>
-  void reduce(std::vector<Ltype> &lvec, std::function<void(ET &eval, Ltype &l)> red_op) {
+  void reduceU(std::vector<Ltype> &lvec, std::function<void(ET &eval, Ltype &l)> red_op) {
     for(auto &e: edges) {
       red_op(e.val, lvec[e.src]);
     }
@@ -191,7 +198,43 @@ class Graph {
   }
 
 
+  /* debug */
+  void dump_id2id(std::string fname) 
+  {
+    std::string u_fname = fname + ".u.dat";
+    std::ofstream ofs_u(u_fname.c_str(), std::ios_base::out | std::ios_base::binary);
+    for(auto &kv : Uid2id) {
+      ofs_u << kv.first << "\t" << kv.second << "\n";
+    }
+    ofs_u.close();
+
+    std::string v_fname = fname + ".v.dat";
+    std::ofstream ofs_v(v_fname.c_str(), std::ios_base::out | std::ios_base::binary);
+    for(auto &kv : Vid2id) {
+      ofs_v << kv.first << "\t" << kv.second << "\n";
+    }
+    ofs_v.close();
+  }
+
+
 };
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

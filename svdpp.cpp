@@ -31,7 +31,7 @@ class SVDPP {
   static double rmse;
 
 
-  static const size_t NLATENT = 20;
+  static const size_t NLATENT = 128;
 
   /*
    * Edge type
@@ -212,16 +212,16 @@ class SVDPP {
 };
 
 
-float SVDPP::itmBiasStep  = 1e-4;
-float SVDPP::itmBiasReg   = 1e-4;
-float SVDPP::usrBiasStep  = 1e-4;
-float SVDPP::usrBiasReg   = 1e-4;
-float SVDPP::usrFctrStep  = 1e-4;
-float SVDPP::usrFctrReg   = 1e-4;
-float SVDPP::itmFctrStep  = 1e-4;
-float SVDPP::itmFctrReg   = 1e-4;
-float SVDPP::itmFctr2Step = 1e-4;
-float SVDPP::itmFctr2Reg  = 1e-4;
+float SVDPP::itmBiasStep  = 1e-2;
+float SVDPP::itmBiasReg   = 1e-2;
+float SVDPP::usrBiasStep  = 1e-2;
+float SVDPP::usrBiasReg   = 1e-2;
+float SVDPP::usrFctrStep  = 1e-2;
+float SVDPP::usrFctrReg   = 1e-2;
+float SVDPP::itmFctrStep  = 1e-2;
+float SVDPP::itmFctrReg   = 1e-2;
+float SVDPP::itmFctr2Step = 1e-2;
+float SVDPP::itmFctr2Reg  = 1e-2;
 double SVDPP::MINVAL = -1e+100;
 double SVDPP::MAXVAL = 1e+100;
 double SVDPP::GLOBAL_MEAN = 0.0;
@@ -233,11 +233,20 @@ double SVDPP::rmse;
 int main(int argc, char ** argv) {
 
   google::ParseCommandLineFlags(&argc, &argv, false);
-  google::InitGoogleLogging(argv[0]);
+  //google::InitGoogleLogging(argv[0]);
 
   Graph<SVDPP::Etype> * graph = new Graph<SVDPP::Etype>(FLAGS_strip_width);
+  /* load graph */
+  graph->load(FLAGS_graph);
+
+  LOG(INFO) << " Graph Load Finished.";
+
   size_t u_len = graph->get_dim().first;
   size_t v_len = graph->get_dim().second;
+
+  //graph->dump_id2id(FLAGS_graph);
+
+  LOG(INFO) << " graph dim : " << u_len << " , " << v_len;
 
   std::vector<SVDPP::Ftype> *f_user = new std::vector<SVDPP::Ftype>(u_len);
   std::vector<SVDPP::Ftype> *f_item = new std::vector<SVDPP::Ftype>(v_len);
@@ -251,13 +260,11 @@ int main(int argc, char ** argv) {
   std::vector<SVDPP::Ltype> *l_user = new std::vector<SVDPP::Ltype>(u_len);
   std::vector<SVDPP::Stype> *s_item = new std::vector<SVDPP::Stype>(v_len);
 
-  /* load graph */
-  graph->load(FLAGS_graph);
-
   /* init */
   unary_app<SVDPP::Ltype>(*l_user, SVDPP::reset_l);
-  graph->reduce<SVDPP::Ltype>(*l_user, SVDPP::map_l);
+  graph->reduceU<SVDPP::Ltype>(*l_user, SVDPP::map_l);
   unary_app<SVDPP::Ltype>(*l_user, SVDPP::update_l);
+
 
   // GLOBAL_MEAN
   graph->edge_apply<double>(SVDPP::GLOBAL_MEAN, SVDPP::gb_eapp);
