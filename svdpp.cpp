@@ -176,7 +176,7 @@ class SVDPP {
   }
 
 
-  static void gen_update(Ftype &f_user, Ftype &f_item, 
+  static void gen_gradient(Ftype &f_user, Ftype &f_item, 
                          Wtype &w_user, Wtype &w_item,
                          Ltype &l_user,
                          Etype &e,
@@ -194,16 +194,16 @@ class SVDPP {
     float err = e.obs - pred;
     
     /* gen reduces */
-    r_user.delta_bias = usrBiasStep*(err - usrBiasReg * f_user.bias);
-    r_item.delta_bias = itmBiasStep*(err - itmBiasReg * f_item.bias);
+    r_user.delta_bias += usrBiasStep*(err - usrBiasReg * f_user.bias);
+    r_item.delta_bias += itmBiasStep*(err - itmBiasReg * f_item.bias);
 
     for(size_t i = 0;i < NLATENT;i ++) {
-      r_user.delta_pvec[i] = usrFctrStep * (err * 
+      r_user.delta_pvec[i] += usrFctrStep * (err * 
                   (f_item.pvec[i] - usrFctrReg * f_user.pvec[i]) );
     }
 
     for(size_t i = 0;i < NLATENT;i ++) {
-      r_item.delta_pvec[i] = itmFctrStep * (err * 
+      r_item.delta_pvec[i] += itmFctrStep * (err * 
                   (f_user.pvec[i] + w_user.weight[i]) - itmFctrReg * f_item.pvec[i]) ;
     }
 
@@ -211,7 +211,7 @@ class SVDPP {
     double _a = err  * itmFctr2Step * l_user ;
     double _b = itmFctr2Step * itmFctr2Reg;
     for(size_t i = 0; i < NLATENT;i ++) {
-      s_item.step[i] = f_item.pvec[i] * _a - _b * w_item.weight[i];
+      s_item.step[i] += f_item.pvec[i] * _a - _b * w_item.weight[i];
     }
   }
 
@@ -258,20 +258,20 @@ class SVDPP {
 };
 
 
-float SVDPP::itmBiasStep  = 1e-7;
-float SVDPP::itmBiasReg   = 1e-7;
-float SVDPP::usrBiasStep  = 1e-7;
-float SVDPP::usrBiasReg   = 1e-7;
-float SVDPP::usrFctrStep  = 1e-7;
-float SVDPP::usrFctrReg   = 1e-7;
-float SVDPP::itmFctrStep  = 1e-7;
-float SVDPP::itmFctrReg   = 1e-7;
-float SVDPP::itmFctr2Step = 1e-7;
-float SVDPP::itmFctr2Reg  = 1e-7;
+float SVDPP::itmBiasStep  = 1e-9;
+float SVDPP::itmBiasReg   = 1e-9;
+float SVDPP::usrBiasStep  = 1e-9;
+float SVDPP::usrBiasReg   = 1e-9;
+float SVDPP::usrFctrStep  = 1e-9;
+float SVDPP::usrFctrReg   = 1e-9;
+float SVDPP::itmFctrStep  = 1e-9;
+float SVDPP::itmFctrReg   = 1e-9;
+float SVDPP::itmFctr2Step = 1e-9;
+float SVDPP::itmFctr2Reg  = 1e-9;
 double SVDPP::MINVAL = -1e+100;
 double SVDPP::MAXVAL = 1e+100;
 double SVDPP::GLOBAL_MEAN = 0.0;
-double SVDPP::STEP_DEC = 0.9;
+double SVDPP::STEP_DEC = 0.99;
 
 double SVDPP::rmse = 0.0;
 
@@ -347,7 +347,7 @@ int main(int argc, char ** argv) {
                                     *r_user,
                                     *r_item,
                                     *s_item,
-                                    SVDPP::gen_update);
+                                    SVDPP::gen_gradient);
 
 
     if (it % 100 == 0) {
@@ -370,7 +370,7 @@ int main(int argc, char ** argv) {
     SVDPP::rmse = r;
 
     /* update k */
-    if (it % 30 == 0)
+    if (it % 60 == 0)
       SVDPP::update_k();
 
 /*
